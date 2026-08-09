@@ -58,15 +58,17 @@ async function prompt(question) {
 }
 
 function openBrowser(url) {
-  // start needs an empty title arg, and the URL quoted, or & splits the command.
-  const child =
+  // Not `cmd /c start`: cmd re-parses the string and treats & as a command
+  // separator, truncating the URL at the first query parameter. Google then
+  // rejects the request for a missing response_type. rundll32 takes the URL
+  // as a single argv entry with no shell involved.
+  const [command, args] =
     process.platform === 'win32'
-      ? spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' })
-      : spawn(process.platform === 'darwin' ? 'open' : 'xdg-open', [url], {
-          detached: true,
-          stdio: 'ignore'
-        });
-  child.on('error', () => {});
+      ? ['rundll32', ['url.dll,FileProtocolHandler', url]]
+      : [process.platform === 'darwin' ? 'open' : 'xdg-open', [url]];
+
+  const child = spawn(command, args, { detached: true, stdio: 'ignore', shell: false });
+  child.on('error', () => {}); // the URL is printed too; opening is a convenience
   child.unref();
 }
 
