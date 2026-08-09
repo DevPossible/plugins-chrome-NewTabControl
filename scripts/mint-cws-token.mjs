@@ -182,7 +182,7 @@ async function readClientFromKeeper() {
  */
 const REFRESH_FIELD = 'Refresh Token';
 
-async function saveToKeeper({ refreshToken, repos }) {
+async function saveToKeeper({ refreshToken, repos, clientId, clientSecret }) {
   // Keeper Commander rejects any command containing a newline with "control
   // characters are not allowed in command input" - and still exits 0 - so the
   // note must stay on one line. The full rationale lives in STORE-LISTING.md.
@@ -207,17 +207,28 @@ async function saveToKeeper({ refreshToken, repos }) {
   // Trusting the exit code here already cost one minted token.
   const raw = await keeper(['get', KEEPER_RECORD, '--format', 'json']);
   const record = JSON.parse(raw.slice(raw.indexOf('{')));
+  const field = (type) => record.fields?.find((f) => f.type === type)?.value?.[0];
   const stored = record.custom?.find((f) => f.label === REFRESH_FIELD)?.value?.[0];
+
+  // A field spec whose label collides with a built-in type overwrites that
+  // built-in rather than creating a custom field: "c.password.Foo=x" replaces
+  // the record's password outright. That destroyed the client secret once
+  // during development, so confirm the inputs survived their own write.
+  if (field('login') !== clientId || field('password') !== clientSecret) {
+    throw new Error(
+      `Writing to "${KEEPER_RECORD}" altered the client ID or secret. Restore ` +
+        'with:  keeper record-history <record> -a restore -r <revision>'
+    );
+  }
 
   if (stored !== refreshToken) {
     throw new Error(
-      `Keeper reported success but "${REFRESH_FIELD}" did not persist on ` +
-        `"${KEEPER_RECORD}". The token is still in memory - copy it now:\n\n` +
-        `  ${refreshToken}\n`
+      `Keeper reported success but "${REFRESH_FIELD}" did not persist on "${KEEPER_RECORD}".`
     );
   }
 
   console.log(`  refresh token verified on "${KEEPER_RECORD}" (custom field)`);
+  console.log('  client ID and secret confirmed unchanged');
 }
 
 /** Run gh, capture stdout, optionally feed stdin. Throws on non-zero exit. */
@@ -383,7 +394,7 @@ if (!body.refresh_token) {
 async function persist(refreshToken) {
   if (setKeeper) {
     console.log('\nPersisting to Keeper:');
-    await saveToKeeper({ refreshToken, repos });
+    await saveToKeeper({ refreshToken, repos, clientId, clientSecret });
   }
 
   if (setGithub) {
