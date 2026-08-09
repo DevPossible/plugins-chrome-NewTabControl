@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>New Tab Control settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>New Tab Control</h1>
+
+      <form id="settings">
+        <label class="field" for="target-url">
+          <span class="label">New tab page</span>
+          <input
+            id="target-url"
+            name="targetUrl"
+            type="text"
+            inputmode="url"
+            spellcheck="false"
+            autocomplete="off"
+            placeholder="https://devpossible.com/start/"
+          />
+          <span class="hint">Any http:// or https:// address.</span>
+        </label>
+
+        <fieldset class="field">
+          <legend class="label">How to open it</legend>
+
+          <label class="choice">
+            <input type="radio" name="mode" value="redirect" />
+            <span>
+              <strong>Redirect</strong>
+              <span class="hint">Navigate straight to the page. Works everywhere.</span>
+            </span>
+          </label>
+
+          <label class="choice">
+            <input type="radio" name="mode" value="embed" />
+            <span>
+              <strong>Embed</strong>
+              <span class="hint">Keep the new tab URL and frame the page. Some sites refuse this.</span>
+            </span>
+          </label>
+        </fieldset>
+
+        <label class="choice" id="focus-row">
+          <input type="checkbox" name="focusPage" />
+          <span>
+            <strong>Focus the page, not the address bar</strong>
+            <span class="hint">Embed mode only.</span>
+          </span>
+        </label>
+
+        <div class="actions">
+          <button type="submit">Save</button>
+          <button type="button" id="reset" class="secondary">Reset to default</button>
+          <span id="status" role="status" aria-live="polite"></span>
+        </div>
+      </form>
+
+      <p class="footer">
+        No browsing data is collected, and the extension requests no access to the
+        sites you visit. <a href="https://github.com/DevPossible/plugins-chrome-NewTabControl" target="_blank" rel="noreferrer">Source on GitHub</a>
+      </p>
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

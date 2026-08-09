@@ -1,0 +1,7 @@
+dist/
+node_modules/
+*.pem
+*.crx
+.aitemp/
+.DS_Store
+Thumbs.db

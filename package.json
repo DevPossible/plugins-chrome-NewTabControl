@@ -1,0 +1,21 @@
+{
+  "name": "plugins-chrome-newtabcontrol",
+  "version": "0.1.0",
+  "description": "Chrome extension: take control of your new tab page.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/DevPossible/plugins-chrome-NewTabControl",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DevPossible/plugins-chrome-NewTabControl.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "validate": "node scripts/validate.mjs",
+    "build": "node scripts/build.mjs",
+    "release": "node scripts/publish-cws.mjs"
+  }
+}

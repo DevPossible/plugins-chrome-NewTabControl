@@ -1,0 +1,133 @@
+# Continuous delivery for the Chrome Web Store.
+#
+# upstream (the upstream repository) is
+# the source of truth and mirrors here; that mirror push carries tags, which is
+# what triggers a release.
+#
+# Tag v0.1.0 -> upload a draft + create a GitHub release.
+# The store submission itself is a manual approval step so a bad tag can never
+# reach users unattended.
+
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Submit to the Chrome Web Store for review (not just upload a draft)"
+        type: boolean
+        default: false
+      target:
+        description: "Publish target"
+        type: choice
+        options: [default, trustedTesters]
+        default: default
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Validate and package
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      has_credentials: ${{ steps.creds.outputs.present }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate manifest
+        run: node scripts/validate.mjs
+
+      - name: Build package
+        run: node scripts/build.mjs
+
+      - name: Read version
+        id: meta
+        run: echo "version=$(node -p "require('./src/manifest.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check tag matches manifest version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest="${{ steps.meta.outputs.version }}"
+          if [ "$tag" != "$manifest" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match manifest version $manifest"
+            exit 1
+          fi
+
+      # Secrets are unavailable to job-level `if`, so the gate lives in a step.
+      - name: Check for store credentials
+        id: creds
+        env:
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          if [ -n "$CWS_EXTENSION_ID" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Chrome Web Store secrets are not configured yet - packaging only."
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-package
+          path: dist/*.zip
+          if-no-files-found: error
+
+  release:
+    name: GitHub release
+    needs: package
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-package
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true
+
+  store:
+    name: Chrome Web Store
+    needs: package
+    if: needs.package.outputs.has_credentials == 'true'
+    runs-on: ubuntu-latest
+    # Gate the store submission behind a GitHub environment so a reviewer
+    # approves before anything reaches users. Create the environment named
+    # "chrome-web-store" and add required reviewers.
+    environment: chrome-web-store
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-package
+          path: dist
+
+      - name: Upload to Chrome Web Store
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          args=""
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.publish }}" = "true" ]; then
+            args="--publish --target=${{ inputs.target || 'default' }}"
+          fi
+          node scripts/publish-cws.mjs $args

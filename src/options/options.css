@@ -1,0 +1,139 @@
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1b1f24;
+  --muted: #5c6773;
+  --accent: #1075a8;
+  --border: #d5dbe1;
+  --field: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #9aa7b4;
+    --accent: #47b2e4;
+    --border: #2b3440;
+    --field: #161b22;
+  }
+}
+
+body {
+  margin: 0;
+  min-width: 24rem;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+main {
+  max-width: 34rem;
+  padding: 1.25rem 1.5rem 1.5rem;
+}
+
+h1 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0 0 1.25rem;
+}
+
+.field {
+  display: block;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  border: 0;
+}
+
+.label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.hint {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--fg);
+}
+
+input[type="text"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.choice {
+  display: flex;
+  gap: 0.6rem;
+  align-items: start;
+  margin-bottom: 0.6rem;
+  cursor: pointer;
+}
+
+.choice input {
+  margin-top: 0.25rem;
+}
+
+.choice strong {
+  display: block;
+  font-weight: 500;
+}
+
+#focus-row[hidden] {
+  display: none;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
+}
+
+button {
+  font: inherit;
+  padding: 0.45rem 1rem;
+  border-radius: 6px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+  cursor: pointer;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--accent);
+}
+
+#status {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+#status.error {
+  color: #d1242f;
+}
+
+.footer {
+  margin: 1.75rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+a {
+  color: var(--accent);
+}

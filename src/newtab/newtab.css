@@ -1,0 +1,75 @@
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff;
+  --fg: #1b1f24;
+  --muted: #5c6773;
+  --accent: #1075a8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #9aa7b4;
+    --accent: #47b2e4;
+  }
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+#frame {
+  display: block;
+  border: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#frame[hidden] {
+  display: none;
+}
+
+main {
+  max-width: 32rem;
+  margin: 0 auto;
+  padding: 18vh 1.5rem 0;
+}
+
+main[hidden] {
+  display: none;
+}
+
+h1 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+#reason {
+  color: var(--muted);
+  margin: 0 0 1.25rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+button {
+  font: inherit;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+button:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}

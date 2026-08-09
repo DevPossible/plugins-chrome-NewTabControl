@@ -1,0 +1,34 @@
+# CI only. Publishing to the Chrome Web Store happens on GitHub - see
+# .github/workflows/publish.yml. upstream is the source of truth and pushes to
+# GitHub through a native repository mirror (Settings -> Repository -> Mirroring).
+
+default:
+  image: node:22-alpine
+  interruptible: true
+
+stages:
+  - validate
+  - build
+
+validate:
+  stage: validate
+  script:
+    - node scripts/validate.mjs
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+package:
+  stage: build
+  script:
+    - node scripts/build.mjs
+  artifacts:
+    name: "newtabcontrol-$CI_COMMIT_REF_SLUG"
+    paths:
+      - dist/*.zip
+    expire_in: 30 days
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG

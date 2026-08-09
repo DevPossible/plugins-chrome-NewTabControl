@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>New Tab</title>
+    <link rel="stylesheet" href="newtab.css" />
+  </head>
+  <body>
+    <!-- Shown only if we cannot navigate: bad/blank URL, or the frame is refused. -->
+    <main id="fallback" hidden>
+      <h1>New Tab Control</h1>
+      <p id="reason">No new tab page is configured yet.</p>
+      <p><a id="open-target" href="#" hidden>Open the page in this tab</a></p>
+      <button id="open-settings" type="button">Open settings</button>
+    </main>
+
+    <iframe id="frame" title="New tab page" hidden></iframe>
+
+    <script type="module" src="newtab.js"></script>
+  </body>
+</html>

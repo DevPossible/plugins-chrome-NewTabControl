@@ -1,0 +1,8 @@
+# Authored on Windows with core.autocrlf=true; committed and checked out as LF.
+# CI runs these files through bash on Linux, where a stray CR becomes
+# "$'\r': command not found".
+* text=auto eol=lf
+
+*.png binary
+*.zip binary
+*.crx binary
