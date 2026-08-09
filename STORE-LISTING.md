@@ -169,8 +169,8 @@ Done:
 - ✅ GitHub environment `chrome-web-store` created, with `devpossible-richard`
   as a required reviewer and deployments restricted to `v*` tags.
 
-Still needed — a Google Cloud project owned by `support@devpossible.com` with
-the Chrome Web Store API enabled, then three more secrets:
+Still needed — three more secrets, from a Google Cloud project owned by
+`support@devpossible.com`:
 
 | Secret | Source |
 |---|---|
@@ -178,8 +178,52 @@ the Chrome Web Store API enabled, then three more secrets:
 | `CWS_CLIENT_SECRET` | same client |
 | `CWS_REFRESH_TOKEN` | one-time consent as `support@devpossible.com`, scope `https://www.googleapis.com/auth/chromewebstore` |
 
-Put all three in Keeper as well. The `store` job stays skipped until **all
-four** are present, so a partial setup cannot burn a reviewer approval and then
-fail on a missing credential.
+### Console steps
+
+Signed in as `support@devpossible.com` at
+[console.cloud.google.com](https://console.cloud.google.com):
+
+1. Create a project — e.g. `devpossible-publishing`.
+2. **APIs & Services → Library** → enable **Chrome Web Store API**.
+3. **OAuth consent screen** → User type **External**. (Internal is not offered:
+   `devpossible.com` mail is Microsoft 365, so there is no Workspace directory
+   behind this account.) Fill in app name, support email, developer email.
+4. ⚠️ **Set Publishing status to "In production".** See the warning below.
+5. **Credentials → Create credentials → OAuth client ID → Desktop app.**
+   Copy the client ID and secret.
+
+Then, with Keeper unlocked:
+
+```bash
+cd C:\Dev\ado\devpossible\Plugins\Chrome\newtabcontrol
+npm run mint-token
+```
+
+That opens the consent page, catches the redirect, and writes all three values
+to Keeper and to GitHub Actions secrets without them passing through the
+clipboard.
+
+### ⚠️ Leave the consent screen in Testing and CI breaks every 7 days
+
+With User type **External** and publishing status **Testing**, Google revokes
+refresh tokens after **7 days**. The pipeline would work, then fail every
+following week with `invalid_grant`, on a cadence just slow enough to look like
+something else. Setting the status to **In production** is what makes the token
+durable.
+
+Verification is not needed for this: the only account that ever authorizes the
+app is the publisher account itself. An unverified app in production shows a
+warning on the consent screen, which is irrelevant for a one-time internal
+consent.
+
+In production the token is effectively indefinite, with two caveats worth
+knowing: it dies after **6 months of no use** — plausible here, since releases
+are infrequent — and there is a cap of 50 live refresh tokens per client/user,
+after which the oldest is silently revoked. If a release ever fails with
+`invalid_grant`, re-run `npm run mint-token`; nothing else needs rebuilding.
+
+The `store` job stays skipped until **all four** secrets are present, so a
+partial setup cannot burn a reviewer approval and then fail on a missing
+credential.
 
 From then on, tagging `vX.Y.Z` on upstream drives the release end to end.
