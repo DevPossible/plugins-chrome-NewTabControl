@@ -41,8 +41,12 @@ const setKeeper = process.argv.includes('--set-keeper');
 // because the scope authorizes the publisher account, not an individual item.
 const repoScope = process.argv.includes('--repo-scope');
 
-const KEEPER = 'C:/Program Files (x86)/Keeper Commander/keeper.bat';
-const KEEPER_TITLE = 'Chrome Web Store API - support@devpossible.com';
+// keeper.bat re-invokes the exe and mangles its own quoting when the install
+// path contains spaces, so call the executable directly.
+const KEEPER =
+  process.env.KEEPER_CLI || 'C:/Program Files (x86)/Keeper Commander/keeper-commander.exe';
+// The record already holding the OAuth client ID (login) and secret (password).
+const KEEPER_RECORD = process.env.CWS_KEEPER_RECORD || 'Chrome Web Store CI';
 
 async function prompt(question) {
   const rl = createInterface({ input: stdin, output: stdout });
@@ -122,12 +126,57 @@ function startLoopbackServer(expectedState) {
   });
 }
 
+/** Run Keeper Commander, capture stdout. Throws on non-zero exit. */
+function keeper(args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(KEEPER, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false
+    });
+
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (d) => (out += d));
+    child.stderr.on('data', (d) => (err += d));
+    child.on('error', (e) =>
+      reject(new Error(`could not run Keeper Commander at ${KEEPER}: ${e.message}`))
+    );
+    child.on('close', (code) =>
+      code === 0
+        ? resolve(out)
+        : reject(new Error(`keeper ${args[0]} failed: ${(err || out).trim()}`))
+    );
+  });
+}
+
 /**
- * Store the credential set in Keeper as one record.
+ * Pull the OAuth client ID and secret from the existing Keeper record, so they
+ * never pass through the clipboard, the prompt, or shell history.
+ */
+async function readClientFromKeeper() {
+  const raw = await keeper(['get', KEEPER_RECORD, '--format', 'json']);
+  const start = raw.indexOf('{');
+  if (start < 0) throw new Error(`unexpected Keeper output for "${KEEPER_RECORD}"`);
+
+  const record = JSON.parse(raw.slice(start));
+  const field = (type) => record.fields?.find((f) => f.type === type)?.value?.[0];
+
+  const clientId = field('login');
+  const clientSecret = field('password');
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      `"${KEEPER_RECORD}" is missing a login (client ID) or password (client secret).`
+    );
+  }
+  return { clientId, clientSecret, uid: record.record_uid };
+}
+
+/**
+ * Write the refresh token back onto the SAME record as a custom field.
  *
- * They belong together: the refresh token is meaningless without the client
- * it was minted for, and rotating one means rotating all three. Splitting
- * them across records invites a partial rotation.
+ * Deliberately an update, not a new record: the token is meaningless without
+ * the client it was minted for, and rotating one means rotating all three.
+ * A second record would invite a half-done rotation.
  */
 async function saveToKeeper({ clientId, clientSecret, refreshToken, repos }) {
   const notes = [
@@ -154,32 +203,15 @@ async function saveToKeeper({ clientId, clientSecret, refreshToken, repos }) {
     'is re-running the minter; rotating one value means rotating all three.'
   ].join('\n');
 
-  const args = [
-    'record-add',
-    '--title', KEEPER_TITLE,
-    '--record-type', 'login',
+  // c.password.<label> = custom field, password type, so it stays masked.
+  await keeper([
+    'record-update',
+    '--record', KEEPER_RECORD,
     '--notes', notes,
-    `login=${clientId}`,
-    `password=${refreshToken}`,
-    'url=https://chrome.google.com/webstore/devconsole',
-    `client_secret=${clientSecret}`,
-    `extension_id=${extensionId}`
-  ];
+    `c.password.Refresh Token=${refreshToken}`
+  ]);
 
-  const child = spawn(KEEPER, args, {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    shell: process.platform === 'win32'
-  });
-
-  let out = '';
-  child.stdout.on('data', (d) => (out += d));
-  child.stderr.on('data', (d) => (out += d));
-
-  const code = await new Promise((resolve) => child.on('close', resolve));
-  if (code !== 0) {
-    throw new Error(`keeper record-add failed (exit ${code}):\n${out.trim()}`);
-  }
-  console.log(`  stored in Keeper as "${KEEPER_TITLE}"`);
+  console.log(`  refresh token written to "${KEEPER_RECORD}" (custom field)`);
 }
 
 /** Run gh, capture stdout, optionally feed stdin. Throws on non-zero exit. */
@@ -270,9 +302,24 @@ if (setGithub) {
   }
 }
 
-const clientId = process.env.CWS_CLIENT_ID || (await prompt('OAuth client ID: '));
-const clientSecret =
-  process.env.CWS_CLIENT_SECRET || (await prompt('OAuth client secret: '));
+// Prefer Keeper: the client ID and secret already live there, and reading them
+// keeps them out of the clipboard, the prompt and shell history.
+let clientId = process.env.CWS_CLIENT_ID;
+let clientSecret = process.env.CWS_CLIENT_SECRET;
+
+if (!clientId || !clientSecret) {
+  try {
+    const fromKeeper = await readClientFromKeeper();
+    clientId ||= fromKeeper.clientId;
+    clientSecret ||= fromKeeper.clientSecret;
+    console.log(`Client credentials read from Keeper record "${KEEPER_RECORD}".`);
+  } catch (error) {
+    console.log(`Could not read Keeper record "${KEEPER_RECORD}": ${error.message}`);
+    console.log('Falling back to prompts.\n');
+    clientId ||= await prompt('OAuth client ID: ');
+    clientSecret ||= await prompt('OAuth client secret: ');
+  }
+}
 
 if (!clientId || !clientSecret) {
   console.error('Both a client ID and client secret are required.');

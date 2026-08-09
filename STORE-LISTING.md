@@ -193,16 +193,23 @@ Signed in as `support@devpossible.com` at
 5. **Credentials → Create credentials → OAuth client ID → Desktop app.**
    Copy the client ID and secret.
 
-Then, with Keeper unlocked:
+Store the client ID and secret in the Keeper record **Chrome Web Store CI**
+(`login` = client ID, `password` = client secret). Then, with Keeper unlocked
+and `gh` holding the `admin:org` scope:
 
 ```bash
 cd C:\Dev\ado\devpossible\Plugins\Chrome\newtabcontrol
 npm run mint-token
 ```
 
-That opens the consent page, catches the redirect, and writes all three values
-to Keeper and to GitHub Actions secrets without them passing through the
-clipboard.
+That reads the client credentials straight from Keeper, opens the consent page,
+catches the redirect, writes the refresh token back onto the **same** Keeper
+record as a masked custom field, and pushes all three to GitHub organization
+secrets. Nothing passes through the clipboard or shell history.
+
+The refresh token goes on the existing record rather than a new one on purpose:
+it is meaningless without the client it was minted for, and rotating one means
+rotating all three. A second record would invite a half-done rotation.
 
 ### "No organization" is expected — do not fix it
 
