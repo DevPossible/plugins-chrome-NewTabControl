@@ -183,7 +183,8 @@ Still needed — three more secrets, from a Google Cloud project owned by
 Signed in as `support@devpossible.com` at
 [console.cloud.google.com](https://console.cloud.google.com):
 
-1. Create a project — e.g. `devpossible-publishing`.
+1. Create a project — e.g. `devpossible-publishing`. The organization picker
+   will say **"No organization"**. That is correct; leave it. See below.
 2. **APIs & Services → Library** → enable **Chrome Web Store API**.
 3. **OAuth consent screen** → User type **External**. (Internal is not offered:
    `devpossible.com` mail is Microsoft 365, so there is no Workspace directory
@@ -202,6 +203,26 @@ npm run mint-token
 That opens the consent page, catches the redirect, and writes all three values
 to Keeper and to GitHub Actions secrets without them passing through the
 clipboard.
+
+### "No organization" is expected — do not fix it
+
+A Google Cloud organization is provisioned only by a Google **Workspace** or
+**Cloud Identity** account for the domain. `support@devpossible.com` is an
+unmanaged *consumer* Google Account that merely uses the domain in its address;
+the mailbox is Microsoft 365. With no Google directory behind `devpossible.com`
+there is no organization — and that same fact is why the consent screen offers
+only "External". One cause, two symptoms.
+
+Nothing in this pipeline needs an organization.
+
+**Do not create one to tidy this up.** Standing up Cloud Identity for
+`devpossible.com` would make `support@devpossible.com` a *conflicting account*
+(a managed account colliding with an existing unmanaged one), resolvable only
+through the Transfer tool for unmanaged users. That account owns the Chrome Web
+Store publisher, which is one per account for life and holds an item that can
+never be moved back out. It would also stand up a second identity authority for
+`devpossible.com`, against the goal of consolidating on the single DevPossible
+Entra tenant.
 
 ### ⚠️ Leave the consent screen in Testing and CI breaks every 7 days
 
