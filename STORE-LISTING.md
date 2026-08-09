@@ -163,11 +163,18 @@ The item ID is public, not a secret — it appears in every install URL.
 
 ## Automating subsequent releases
 
-Done:
+**Complete as of 2026-08-09.** Verified end to end with a read-only API call:
+refresh token → access token → authenticated read of the item.
 
-- ✅ `CWS_EXTENSION_ID` set as a GitHub Actions secret.
-- ✅ GitHub environment `chrome-web-store` created, with `devpossible-richard`
-  as a required reviewer and deployments restricted to `v*` tags.
+- ✅ `CWS_EXTENSION_ID` — repo-level secret.
+- ✅ `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN` — **organization**
+  secrets on `DevPossible`, visibility `selected`, shared with every
+  `plugins-chrome-*` repo. One credential serves all Chrome plugins; run
+  `npm run sync-access` after creating a new plugin repo.
+- ✅ GitHub environment `chrome-web-store`, with `devpossible-richard` as a
+  required reviewer and deployments restricted to `v*` tags.
+- ✅ upstream → GitHub push mirror (mirror id 92, `keep_divergent_refs: true`,
+  `only_protected_branches: false` so tags reach GitHub and CD fires).
 
 Still needed — three more secrets, from a Google Cloud project owned by
 `support@devpossible.com`:
