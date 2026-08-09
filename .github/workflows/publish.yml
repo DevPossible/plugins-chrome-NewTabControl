@@ -1,11 +1,7 @@
 # Continuous delivery for the Chrome Web Store.
 #
-# upstream (the upstream repository) is
-# the source of truth and mirrors here; that mirror push carries tags, which is
-# what triggers a release.
-#
-# Tag v0.1.0 -> upload a draft + create a GitHub release.
-# The store submission itself is a manual approval step so a bad tag can never
+# Tag v0.1.0 -> package, create a GitHub release, and submit to the store.
+# The store submission is gated on a manual approval so a bad tag can never
 # reach users unattended.
 
 name: Publish

@@ -173,8 +173,8 @@ refresh token → access token → authenticated read of the item.
   `npm run sync-access` after creating a new plugin repo.
 - ✅ GitHub environment `chrome-web-store`, with `devpossible-richard` as a
   required reviewer and deployments restricted to `v*` tags.
-- ✅ upstream → GitHub push mirror (mirror id 92, `keep_divergent_refs: true`,
-  `only_protected_branches: false` so tags reach GitHub and CD fires).
+- ✅ Upstream → GitHub replication, configured to carry tags so release tags
+  reach this repository and trigger CD.
 
 Still needed — three more secrets, from a Google Cloud project owned by
 `support@devpossible.com`:
@@ -261,4 +261,4 @@ The `store` job stays skipped until **all four** secrets are present, so a
 partial setup cannot burn a reviewer approval and then fail on a missing
 credential.
 
-From then on, tagging `vX.Y.Z` on upstream drives the release end to end.
+From then on, pushing a `vX.Y.Z` tag drives the release end to end.

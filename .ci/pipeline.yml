@@ -1,6 +1,7 @@
-# CI only. Publishing to the Chrome Web Store happens on GitHub - see
-# .github/workflows/publish.yml. upstream is the source of truth and pushes to
-# GitHub through a native repository mirror (Settings -> Repository -> Mirroring).
+# Continuous integration: validate the manifest and package the extension.
+#
+# Publishing to the Chrome Web Store is handled separately by
+# .github/workflows/publish.yml, which runs on release tags.
 
 default:
   image: node:22-alpine

@@ -65,25 +65,21 @@ or if `manifest.json` and `package.json` versions drift apart.
 
 1. Bump the version in **both** `src/manifest.json` and `package.json`.
 2. Update `CHANGELOG.md`.
-3. Tag `vX.Y.Z` on upstream and push.
+3. Push a `vX.Y.Z` tag.
 
-The tag mirrors to GitHub, where the `Publish` workflow validates, packages,
-creates a GitHub release, and — after a reviewer approves the
-`chrome-web-store` environment — uploads and submits to the store.
+The `Publish` workflow then validates, packages, creates a GitHub release, and
+— after a reviewer approves the `chrome-web-store` environment — uploads and
+submits to the store.
 
-## Repository layout
+## Contributing
 
-This repo lives on upstream and mirrors to GitHub:
+Development happens on a private upstream and is published here, so this
+repository is a downstream copy rather than the branch you commit to. Pull
+requests and issues are welcome regardless: changes are applied upstream and
+flow back out here, with authorship preserved.
 
-| | |
-|---|---|
-| Source of truth | `the upstream repository` |
-| Public mirror | `github.com/DevPossible/plugins-chrome-NewTabControl` |
-| CI | upstream (validate + package) |
-| CD | GitHub Actions (release + Chrome Web Store) |
-
-Pull requests on GitHub are welcome; they get applied on the upstream side and
-flow back out through the mirror.
+Because of that, please expect `main` to move in batches rather than
+commit-by-commit, and avoid basing long-lived branches on it.
 
 ## Privacy
 
