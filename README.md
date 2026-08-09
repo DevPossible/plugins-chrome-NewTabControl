@@ -14,7 +14,12 @@ is the source that ships.
 
 ## Install
 
-Not yet on the Chrome Web Store. To run it from source:
+Submitted to the Chrome Web Store and awaiting review (item
+`khecnhnblkgciddahmejociofniofand`). The listing link goes here once it is
+approved.
+
+Meanwhile, download the [latest release](https://github.com/DevPossible/plugins-chrome-NewTabControl/releases/latest)
+or run it from source:
 
 1. Clone the repo.
 2. Open `chrome://extensions`, turn on **Developer mode**.

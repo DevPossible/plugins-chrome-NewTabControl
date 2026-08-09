@@ -64,16 +64,27 @@ jobs:
           fi
 
       # Secrets are unavailable to job-level `if`, so the gate lives in a step.
+      # All four are required: a partial setup would otherwise pass the gate,
+      # burn a reviewer approval, and only then fail on the missing credential.
       - name: Check for store credentials
         id: creds
         env:
           CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
         run: |
-          if [ -n "$CWS_EXTENSION_ID" ]; then
+          missing=""
+          for name in CWS_EXTENSION_ID CWS_CLIENT_ID CWS_CLIENT_SECRET CWS_REFRESH_TOKEN; do
+            eval "value=\${$name}"
+            [ -z "$value" ] && missing="$missing $name"
+          done
+
+          if [ -z "$missing" ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Chrome Web Store secrets are not configured yet - packaging only."
+            echo "::notice::Store submission skipped - not configured:$missing"
           fi
 
       - uses: actions/upload-artifact@v4

@@ -149,16 +149,37 @@ Developer mode → Load unpacked, then capture:
 
 ---
 
-## After the first upload
+## Item identity
 
-The first upload has to be manual, because the item ID does not exist until
-Chrome assigns one. Once it does:
+Submitted for review 2026-08-09.
 
-1. Copy the item ID from the dashboard URL.
-2. Add it to Keeper, then add these four GitHub Actions secrets to
-   `DevPossible/plugins-chrome-NewTabControl`:
-   `CWS_EXTENSION_ID`, `CWS_CLIENT_ID`, `CWS_CLIENT_SECRET`, `CWS_REFRESH_TOKEN`.
-3. Create a GitHub environment named `chrome-web-store` with yourself as a
-   required reviewer.
+| | |
+|---|---|
+| Item ID | `khecnhnblkgciddahmejociofniofand` |
+| Dashboard | [devconsole](https://chrome.google.com/webstore/devconsole/fb000369-502b-4c28-9bc8-76f76e209ae5/khecnhnblkgciddahmejociofniofand/edit) |
+| Public listing (once approved) | `https://chromewebstore.google.com/detail/khecnhnblkgciddahmejociofniofand` |
+
+The item ID is public, not a secret — it appears in every install URL.
+
+## Automating subsequent releases
+
+Done:
+
+- ✅ `CWS_EXTENSION_ID` set as a GitHub Actions secret.
+- ✅ GitHub environment `chrome-web-store` created, with `devpossible-richard`
+  as a required reviewer and deployments restricted to `v*` tags.
+
+Still needed — a Google Cloud project owned by `support@devpossible.com` with
+the Chrome Web Store API enabled, then three more secrets:
+
+| Secret | Source |
+|---|---|
+| `CWS_CLIENT_ID` | OAuth 2.0 client, type **Desktop app** |
+| `CWS_CLIENT_SECRET` | same client |
+| `CWS_REFRESH_TOKEN` | one-time consent as `support@devpossible.com`, scope `https://www.googleapis.com/auth/chromewebstore` |
+
+Put all three in Keeper as well. The `store` job stays skipped until **all
+four** are present, so a partial setup cannot burn a reviewer approval and then
+fail on a missing credential.
 
 From then on, tagging `vX.Y.Z` on upstream drives the release end to end.
