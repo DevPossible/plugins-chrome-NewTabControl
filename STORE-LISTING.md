@@ -115,10 +115,20 @@ https://github.com/DevPossible/plugins-chrome-NewTabControl/blob/main/PRIVACY.md
 
 | Asset | Size | Where |
 |---|---|---|
-| Store icon | 128×128 | `src/icons/icon128.png` |
+| Store icon | 128×128 | `.aitemp/store-assets/store-icon-128x128.png` |
 | Small promo tile | 440×280 | `.aitemp/store-assets/promo-small-440x280.png` |
 | Marquee promo tile | 1400×560 | `.aitemp/store-assets/promo-marquee-1400x560.png` |
-| Screenshots | 1280×800 | **Must be captured from the running extension** |
+| Screenshot | 1280×800 | `.aitemp/store-assets/screenshot-1-settings-1280x800.png` |
+
+Regenerate with `python scripts/make-icons.py`, `scripts/make-promo.py`, and
+`scripts/make-screenshot.py <capture.png> <out-name>`.
+
+> **The store icon is not `src/icons/icon128.png`.** The manifest icon fills its
+> canvas edge to edge, which is right for the toolbar and wrong for the listing.
+> The store spec is 96×96 of artwork inside 16px of transparent padding on every
+> side, so it gets its own render. The store icon also carries a faint light
+> glow, per Google's guidance for mostly-dark marks, so it stays visible against
+> the store's dark theme.
 
 Screenshots have to be real — a mockup that does not match the shipped UI is
 grounds for rejection. Load `src/` unpacked via `chrome://extensions` →
