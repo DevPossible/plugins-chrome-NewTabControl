@@ -180,40 +180,44 @@ async function readClientFromKeeper() {
  * the client it was minted for, and rotating one means rotating all three.
  * A second record would invite a half-done rotation.
  */
-async function saveToKeeper({ clientId, clientSecret, refreshToken, repos }) {
-  const notes = [
-    'Chrome Web Store API credentials for automated publishing.',
-    '',
-    'SHARED across every DevPossible Chrome extension. The scope authorizes',
-    'the publisher account (support@devpossible.com), not one item, so a',
-    'per-plugin credential would grant identical access - there is no',
-    'per-item scope. Do not mint one per plugin.',
-    '',
-    'Held as GitHub organization secrets on DevPossible, shared with:',
-    ...repos.map((r) => `  ${r}`),
-    '',
-    'Consumed by .github/workflows/publish.yml as CWS_CLIENT_ID,',
-    'CWS_CLIENT_SECRET and CWS_REFRESH_TOKEN. CWS_EXTENSION_ID is per-repo',
-    'and is the only value that differs between plugins.',
-    '',
-    'Minted by scripts/mint-cws-token.mjs, scope',
-    'https://www.googleapis.com/auth/chromewebstore',
-    '',
-    'The refresh token does not expire, but is revoked by a password change,',
-    'withdrawing access at myaccount.google.com/permissions, deleting the',
-    'OAuth client, 6 months of disuse, or exceeding 50 live tokens. Recovery',
-    'is re-running the minter; rotating one value means rotating all three.'
-  ].join('\n');
+const REFRESH_FIELD = 'Refresh Token';
 
-  // c.password.<label> = custom field, password type, so it stays masked.
+async function saveToKeeper({ refreshToken, repos }) {
+  // Keeper Commander rejects any command containing a newline with "control
+  // characters are not allowed in command input" - and still exits 0 - so the
+  // note must stay on one line. The full rationale lives in STORE-LISTING.md.
+  const notes =
+    'Shared Chrome Web Store publishing credential for all DevPossible Chrome ' +
+    'extensions - the scope authorizes the publisher account, not an item, so ' +
+    'do NOT mint one per plugin. Held as GitHub org secrets on DevPossible ' +
+    `(${repos.join(', ')}) as CWS_CLIENT_ID / CWS_CLIENT_SECRET / ` +
+    'CWS_REFRESH_TOKEN; CWS_EXTENSION_ID is per-repo. Re-mint with ' +
+    'scripts/mint-cws-token.mjs. See STORE-LISTING.md.';
+
+  // Bare label = text custom field. The documented "c.password.<label>" form
+  // is not supported on legacy records: it applies nothing and exits 0.
   await keeper([
     'record-update',
     '--record', KEEPER_RECORD,
     '--notes', notes,
-    `c.password.Refresh Token=${refreshToken}`
+    `${REFRESH_FIELD}=${refreshToken}`
   ]);
 
-  console.log(`  refresh token written to "${KEEPER_RECORD}" (custom field)`);
+  // Keeper's exit code does not mean the write applied, so read it back.
+  // Trusting the exit code here already cost one minted token.
+  const raw = await keeper(['get', KEEPER_RECORD, '--format', 'json']);
+  const record = JSON.parse(raw.slice(raw.indexOf('{')));
+  const stored = record.custom?.find((f) => f.label === REFRESH_FIELD)?.value?.[0];
+
+  if (stored !== refreshToken) {
+    throw new Error(
+      `Keeper reported success but "${REFRESH_FIELD}" did not persist on ` +
+        `"${KEEPER_RECORD}". The token is still in memory - copy it now:\n\n` +
+        `  ${refreshToken}\n`
+    );
+  }
+
+  console.log(`  refresh token verified on "${KEEPER_RECORD}" (custom field)`);
 }
 
 /** Run gh, capture stdout, optionally feed stdin. Throws on non-zero exit. */
@@ -274,16 +278,18 @@ async function chromePluginRepos() {
   return repos;
 }
 
+// gh secret set reads the value from stdin when --body is omitted. Passing it
+// as an argument instead would put the secret in the process list.
 async function setOrgSecret(name, value, repos) {
   await gh(
-    ['secret', 'set', name, '--org', GH_ORG, '--visibility', 'selected', '--repos', repos.join(','), '--body-file', '-'],
+    ['secret', 'set', name, '--org', GH_ORG, '--visibility', 'selected', '--repos', repos.join(',')],
     value
   );
   console.log(`  set ${name} (org, ${repos.length} repo${repos.length === 1 ? '' : 's'})`);
 }
 
 async function setRepoSecret(name, value, repo) {
-  await gh(['secret', 'set', name, '--repo', `${GH_ORG}/${repo}`, '--body-file', '-'], value);
+  await gh(['secret', 'set', name, '--repo', `${GH_ORG}/${repo}`], value);
   console.log(`  set ${name} (${repo})`);
 }
 
@@ -374,32 +380,41 @@ if (!body.refresh_token) {
   );
 }
 
-if (setKeeper) {
-  console.log('\nPersisting to Keeper:');
-  await saveToKeeper({ clientId, clientSecret, refreshToken: body.refresh_token, repos });
+async function persist(refreshToken) {
+  if (setKeeper) {
+    console.log('\nPersisting to Keeper:');
+    await saveToKeeper({ refreshToken, repos });
+  }
+
+  if (setGithub) {
+    const values = [
+      ['CWS_CLIENT_ID', clientId],
+      ['CWS_CLIENT_SECRET', clientSecret],
+      ['CWS_REFRESH_TOKEN', refreshToken]
+    ];
+
+    if (repoScope) {
+      console.log(`\nWriting repo secrets to ${GH_ORG}/${repos[0]}:`);
+      for (const [name, value] of values) await setRepoSecret(name, value, repos[0]);
+    } else {
+      console.log(`\nWriting organization secrets to ${GH_ORG}:`);
+      for (const [name, value] of values) await setOrgSecret(name, value, repos);
+      console.log('\n  CWS_EXTENSION_ID stays per-repo - it is the only value that differs.');
+    }
+  }
 }
 
-if (setGithub) {
-  if (repoScope) {
-    console.log(`\nWriting repo secrets to ${GH_ORG}/${repos[0]}:`);
-    for (const [name, value] of [
-      ['CWS_CLIENT_ID', clientId],
-      ['CWS_CLIENT_SECRET', clientSecret],
-      ['CWS_REFRESH_TOKEN', body.refresh_token]
-    ]) {
-      await setRepoSecret(name, value, repos[0]);
-    }
-  } else {
-    console.log(`\nWriting organization secrets to ${GH_ORG}:`);
-    for (const [name, value] of [
-      ['CWS_CLIENT_ID', clientId],
-      ['CWS_CLIENT_SECRET', clientSecret],
-      ['CWS_REFRESH_TOKEN', body.refresh_token]
-    ]) {
-      await setOrgSecret(name, value, repos);
-    }
-    console.log('\n  CWS_EXTENSION_ID stays per-repo - it is the only value that differs.');
-  }
+// From here on a token exists. Nothing below may swallow it: obtaining it is
+// the expensive, interactive part, and an earlier version of this script lost
+// one to a crash between minting and storing.
+try {
+  await persist(body.refresh_token);
+} catch (error) {
+  console.error(`\n${error.message}`);
+  console.error('\nStoring failed, but the token below is valid.');
+  console.error('Save it now rather than re-running the consent flow:\n');
+  console.error(`  CWS_REFRESH_TOKEN=${body.refresh_token}\n`);
+  process.exit(1);
 }
 
 if (setKeeper && setGithub) {
@@ -414,4 +429,4 @@ if (setKeeper && setGithub) {
 }
 
 console.log('\nRefresh tokens do not expire, but are revoked by a password change,');
-console.log('withdrawing access, or deleting the OAuth client.');
+console.log('withdrawing access, deleting the OAuth client, or 6 months of disuse.');
