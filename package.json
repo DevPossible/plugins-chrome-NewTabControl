@@ -17,6 +17,7 @@
     "validate": "node scripts/validate.mjs",
     "build": "node scripts/build.mjs",
     "release": "node scripts/publish-cws.mjs",
-    "mint-token": "node scripts/mint-cws-token.mjs --set-keeper --set-github"
+    "mint-token": "node scripts/mint-cws-token.mjs --set-keeper --set-github",
+    "sync-access": "node scripts/sync-cws-access.mjs"
   }
 }

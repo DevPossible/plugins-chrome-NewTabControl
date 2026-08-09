@@ -30,10 +30,16 @@ import { stdin, stdout } from 'node:process';
 const SCOPE = 'https://www.googleapis.com/auth/chromewebstore';
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
-const GH_REPO = 'DevPossible/plugins-chrome-NewTabControl';
+
+const GH_ORG = 'DevPossible';
+// Chrome plugin repos follow plugins-chrome-{Name}; see docs/plugin-publishing.md.
+const CHROME_REPO_PREFIX = 'plugins-chrome-';
 
 const setGithub = process.argv.includes('--set-github');
 const setKeeper = process.argv.includes('--set-keeper');
+// Default is org-wide: one Chrome Web Store credential serves every plugin,
+// because the scope authorizes the publisher account, not an individual item.
+const repoScope = process.argv.includes('--repo-scope');
 
 const KEEPER = 'C:/Program Files (x86)/Keeper Commander/keeper.bat';
 const KEEPER_TITLE = 'Chrome Web Store API - support@devpossible.com';
@@ -123,21 +129,29 @@ function startLoopbackServer(expectedState) {
  * it was minted for, and rotating one means rotating all three. Splitting
  * them across records invites a partial rotation.
  */
-async function saveToKeeper({ clientId, clientSecret, refreshToken, extensionId }) {
+async function saveToKeeper({ clientId, clientSecret, refreshToken, repos }) {
   const notes = [
     'Chrome Web Store API credentials for automated publishing.',
     '',
-    `Extension: New Tab Control (${extensionId})`,
-    'Repo: DevPossible/plugins-chrome-NewTabControl',
-    'Consumed by: .github/workflows/publish.yml as CWS_CLIENT_ID,',
-    'CWS_CLIENT_SECRET, CWS_REFRESH_TOKEN, CWS_EXTENSION_ID.',
+    'SHARED across every DevPossible Chrome extension. The scope authorizes',
+    'the publisher account (support@devpossible.com), not one item, so a',
+    'per-plugin credential would grant identical access - there is no',
+    'per-item scope. Do not mint one per plugin.',
+    '',
+    'Held as GitHub organization secrets on DevPossible, shared with:',
+    ...repos.map((r) => `  ${r}`),
+    '',
+    'Consumed by .github/workflows/publish.yml as CWS_CLIENT_ID,',
+    'CWS_CLIENT_SECRET and CWS_REFRESH_TOKEN. CWS_EXTENSION_ID is per-repo',
+    'and is the only value that differs between plugins.',
     '',
     'Minted by scripts/mint-cws-token.mjs, scope',
     'https://www.googleapis.com/auth/chromewebstore',
     '',
     'The refresh token does not expire, but is revoked by a password change,',
-    'withdrawing access at myaccount.google.com/permissions, or deleting the',
-    'OAuth client. Rotating any one of these means re-minting all three.'
+    'withdrawing access at myaccount.google.com/permissions, deleting the',
+    'OAuth client, 6 months of disuse, or exceeding 50 live tokens. Recovery',
+    'is re-running the minter; rotating one value means rotating all three.'
   ].join('\n');
 
   const args = [
@@ -168,18 +182,93 @@ async function saveToKeeper({ clientId, clientSecret, refreshToken, extensionId 
   console.log(`  stored in Keeper as "${KEEPER_TITLE}"`);
 }
 
-async function setSecret(name, value) {
-  const child = spawn('gh', ['secret', 'set', name, '--repo', GH_REPO], {
-    stdio: ['pipe', 'inherit', 'inherit'],
-    shell: process.platform === 'win32'
+/** Run gh, capture stdout, optionally feed stdin. Throws on non-zero exit. */
+function gh(args, input) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('gh', args, {
+      stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+      shell: process.platform === 'win32'
+    });
+
+    let out = '';
+    let err = '';
+    child.stdout.on('data', (d) => (out += d));
+    child.stderr.on('data', (d) => (err += d));
+    child.on('error', reject);
+    child.on('close', (code) =>
+      code === 0
+        ? resolve(out.trim())
+        : reject(new Error(`gh ${args[0]} ${args[1] ?? ''} failed: ${(err || out).trim()}`))
+    );
+
+    if (input !== undefined) child.stdin.end(input);
   });
-  child.stdin.end(value);
-  const code = await new Promise((resolve) => child.on('close', resolve));
-  if (code !== 0) throw new Error(`gh secret set ${name} failed (exit ${code})`);
-  console.log(`  set ${name}`);
+}
+
+/**
+ * Org secrets need admin:org. Without it `gh secret set --org` fails with a
+ * bare 403 well after the token has already been minted, so check up front.
+ */
+async function assertOrgScope() {
+  try {
+    await gh(['api', `orgs/${GH_ORG}/actions/secrets`, '--jq', '.total_count']);
+  } catch (error) {
+    if (/admin:org|must be an org admin|403/i.test(error.message)) {
+      throw new Error(
+        'Writing organization secrets needs the admin:org scope.\n' +
+          '  Run:  gh auth refresh -h github.com -s admin:org\n' +
+          '  Or:   re-run with --repo-scope to write repo-level secrets instead.'
+      );
+    }
+    throw error;
+  }
+}
+
+/** Every Chrome plugin repo in the org - these share one publishing credential. */
+async function chromePluginRepos() {
+  const json = await gh([
+    'repo', 'list', GH_ORG, '--limit', '200', '--json', 'name', '--jq', '.[].name'
+  ]);
+  const repos = json
+    .split('\n')
+    .map((n) => n.trim())
+    .filter((n) => n.startsWith(CHROME_REPO_PREFIX));
+
+  if (!repos.length) {
+    throw new Error(`no ${CHROME_REPO_PREFIX}* repos found in ${GH_ORG}`);
+  }
+  return repos;
+}
+
+async function setOrgSecret(name, value, repos) {
+  await gh(
+    ['secret', 'set', name, '--org', GH_ORG, '--visibility', 'selected', '--repos', repos.join(','), '--body-file', '-'],
+    value
+  );
+  console.log(`  set ${name} (org, ${repos.length} repo${repos.length === 1 ? '' : 's'})`);
+}
+
+async function setRepoSecret(name, value, repo) {
+  await gh(['secret', 'set', name, '--repo', `${GH_ORG}/${repo}`, '--body-file', '-'], value);
+  console.log(`  set ${name} (${repo})`);
 }
 
 // --- flow -------------------------------------------------------------------
+
+// Everything that can fail without a browser is checked first. A refresh token
+// is expensive to obtain and awkward to discard, so nothing is minted until
+// there is somewhere to put it.
+let repos = [];
+if (setGithub) {
+  repos = await chromePluginRepos();
+  if (repoScope) {
+    console.log(`Target: ${GH_ORG}/${repos[0]} (repo-scoped)`);
+  } else {
+    await assertOrgScope();
+    console.log(`Target: ${GH_ORG} org secrets, shared by ${repos.length} repo(s):`);
+    for (const repo of repos) console.log(`  ${repo}`);
+  }
+}
 
 const clientId = process.env.CWS_CLIENT_ID || (await prompt('OAuth client ID: '));
 const clientSecret =
@@ -236,23 +325,32 @@ if (!body.refresh_token) {
   );
 }
 
-const extensionId = process.env.CWS_EXTENSION_ID || 'khecnhnblkgciddahmejociofniofand';
-
 if (setKeeper) {
   console.log('\nPersisting to Keeper:');
-  await saveToKeeper({
-    clientId,
-    clientSecret,
-    refreshToken: body.refresh_token,
-    extensionId
-  });
+  await saveToKeeper({ clientId, clientSecret, refreshToken: body.refresh_token, repos });
 }
 
 if (setGithub) {
-  console.log(`\nWriting secrets to ${GH_REPO}:`);
-  await setSecret('CWS_CLIENT_ID', clientId);
-  await setSecret('CWS_CLIENT_SECRET', clientSecret);
-  await setSecret('CWS_REFRESH_TOKEN', body.refresh_token);
+  if (repoScope) {
+    console.log(`\nWriting repo secrets to ${GH_ORG}/${repos[0]}:`);
+    for (const [name, value] of [
+      ['CWS_CLIENT_ID', clientId],
+      ['CWS_CLIENT_SECRET', clientSecret],
+      ['CWS_REFRESH_TOKEN', body.refresh_token]
+    ]) {
+      await setRepoSecret(name, value, repos[0]);
+    }
+  } else {
+    console.log(`\nWriting organization secrets to ${GH_ORG}:`);
+    for (const [name, value] of [
+      ['CWS_CLIENT_ID', clientId],
+      ['CWS_CLIENT_SECRET', clientSecret],
+      ['CWS_REFRESH_TOKEN', body.refresh_token]
+    ]) {
+      await setOrgSecret(name, value, repos);
+    }
+    console.log('\n  CWS_EXTENSION_ID stays per-repo - it is the only value that differs.');
+  }
 }
 
 if (setKeeper && setGithub) {
